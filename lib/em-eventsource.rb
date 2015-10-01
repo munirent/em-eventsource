@@ -48,6 +48,7 @@ module EventMachine
       @errors = []
       @messages = []
       @on = {}
+      @unhandled = []
       @middlewares = []
     end
 
@@ -60,12 +61,15 @@ module EventMachine
 
     # Add a specific event handler
     #
-    # name - name of event
+    # names - names of event
     #
     # Returns nothing
-    def on(name, &block)
-      @on[name] ||= []
-      @on[name] << block
+    def on(*names, &block)
+      names = names.map { |name| name.nil? ? :anonymous : name }
+      names.each do |name|
+        @on[name] ||= []
+        @on[name] << block
+      end
     end
 
     # Add message event handler
@@ -73,6 +77,13 @@ module EventMachine
     # Returns nothing
     def message(&block)
       @messages << block
+    end
+
+    # Add an unhandled event handler
+    #
+    # Returns nothing
+    def unhandled(&block)
+      @unhandled << block
     end
 
     # Add error event handler
@@ -170,10 +181,17 @@ module EventMachine
       end
       return if data.empty?
       data.chomp!
-      if name.nil?
-        @messages.each { |message| message.call(data) }
+      name = :anonymous if name.nil?
+      @messages.each { |handler| handler.call(name, data) }
+      if handlers = @on[name]
+        handlers.each do |handler|
+          case handler.arity
+          when 1 then handler.call(data)
+          else        handler.call(name, data)
+          end
+        end
       else
-        @on[name].each { |message| message.call(data) } if not @on[name].nil?
+        @unhandled.each { |handler| handler.call(name, data) }
       end
     end
 
