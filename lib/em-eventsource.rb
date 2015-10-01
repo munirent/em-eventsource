@@ -65,7 +65,7 @@ module EventMachine
     #
     # Returns nothing
     def on(*names, &block)
-      names = names.map { |name| name.nil? ? :anonymous : name }
+      names = names.map { |name| name == :anonymous ? nil : name }
       names.each do |name|
         @on[name] ||= []
         @on[name] << block
@@ -181,17 +181,20 @@ module EventMachine
       end
       return if data.empty?
       data.chomp!
-      name = :anonymous if name.nil?
-      @messages.each { |handler| handler.call(name, data) }
+      call_handlers @messages, name, data
       if handlers = @on[name]
-        handlers.each do |handler|
-          case handler.arity
-          when 1 then handler.call(data)
-          else        handler.call(name, data)
-          end
-        end
+        call_handlers handlers, name, data
       else
-        @unhandled.each { |handler| handler.call(name, data) }
+        call_handlers @unhandled, name, data
+      end
+    end
+
+    def call_handlers(handlers, name, data)
+      handlers.each do |handler|
+        case handler.arity
+        when 1 then handler.call(data)
+        else        handler.call(name, data)
+        end
       end
     end
 
